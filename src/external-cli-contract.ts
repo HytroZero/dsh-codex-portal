@@ -3,6 +3,20 @@ import type {} from '@deepseek-ai/cordis'
 export type ExternalCliSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access'
 export type ExternalCliApprovalPolicy = 'untrusted' | 'on-request' | 'auto-review' | 'never'
 
+export interface EngineConfigControlOption {
+  readonly value: string
+  readonly label: string
+  readonly labelKey?: string
+}
+
+export interface EngineConfigControl {
+  readonly id: string
+  readonly label: string
+  readonly labelKey?: string
+  readonly defaultValue?: string
+  readonly options: readonly EngineConfigControlOption[]
+}
+
 export interface ExternalCliModelInfo {
   id: string
   name: string
@@ -26,6 +40,7 @@ export interface ExternalCliTurnConfig {
   reasoningEffort?: string
   sandboxMode?: ExternalCliSandboxMode
   approvalPolicy?: ExternalCliApprovalPolicy
+  engineOptions?: Record<string, string>
   developerInstructions?: string
   mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>
 }
@@ -45,6 +60,7 @@ export interface ExternalCliEngine {
   readonly label: string
   readonly supportedSandboxes: readonly ExternalCliSandboxMode[]
   readonly supportedApprovals: readonly ExternalCliApprovalPolicy[]
+  readonly configControls?: readonly EngineConfigControl[]
 
   checkHealth(forceRefresh?: boolean): Promise<ExternalCliHealth>
   listModels(forceRefresh?: boolean): Promise<ExternalCliModelInfo[]>

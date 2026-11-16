@@ -235,7 +235,32 @@ export async function apply(ctx: Context, initialConfig: Config = {}) {
     presetId: CODEX_PRESET_ID,
     label: 'Codex Portal',
     supportedSandboxes: ['read-only', 'workspace-write', 'danger-full-access'],
-    supportedApprovals: ['untrusted', 'on-request', 'never'],
+    supportedApprovals: ['on-request', 'auto-review', 'untrusted', 'never'],
+    configControls: [
+      {
+        id: 'sandboxMode',
+        label: 'Sandbox Policy',
+        labelKey: 'settings.sandbox',
+        defaultValue: 'workspace-write',
+        options: [
+          { value: 'read-only', label: 'Read Only (read-only)', labelKey: 'settings.sandbox.readOnly' },
+          { value: 'workspace-write', label: 'Workspace Write (workspace-write)', labelKey: 'settings.sandbox.workspaceWrite' },
+          { value: 'danger-full-access', label: 'Full Access (danger-full-access)', labelKey: 'settings.sandbox.dangerFullAccess' },
+        ],
+      },
+      {
+        id: 'approvalPolicy',
+        label: 'Approval Policy',
+        labelKey: 'settings.approval',
+        defaultValue: 'on-request',
+        options: [
+          { value: 'on-request', label: 'On Request (on-request)', labelKey: 'settings.approval.onRequest' },
+          { value: 'auto-review', label: 'Auto Review (auto-review)', labelKey: 'settings.approval.autoReview' },
+          { value: 'untrusted', label: 'Untrusted (untrusted)', labelKey: 'settings.approval.untrusted' },
+          { value: 'never', label: 'Never Ask (never)', labelKey: 'settings.approval.never' },
+        ],
+      },
+    ],
     checkHealth,
     listModels,
     async configureSession(sessionId: string, config: ExternalCliTurnConfig) {

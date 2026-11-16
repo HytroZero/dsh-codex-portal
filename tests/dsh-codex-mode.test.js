@@ -146,6 +146,8 @@ test('codex-portal executes turns, projects tools/approvals/questions, enforces 
   // Verify externalCliEngines registration & Typert endpoints
   const engine = ctx.externalCliEngines?.get('codex-portal')
   assert.ok(engine)
+  assert.deepEqual(engine.configControls?.map(c => c.id), ['sandboxMode', 'approvalPolicy'])
+  assert.ok(engine.supportedApprovals.includes('auto-review'))
   const models = await engine.listModels()
   assert.equal(models.length, 2)
 
