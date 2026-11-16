@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex Portal",
+    "description": "将本机 Codex CLI 运行时原生接入 DSH 独立模式与外部 CLI 引擎。"
+  }
+}

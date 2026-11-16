@@ -1,0 +1,16 @@
+# Agent preset codex-portal: parallel to Standard (order: 1) and DeepDuet (order: 2).
+# Delegates reasoning, tool execution, sandbox isolation, and approvals to the
+# local Codex CLI runtime via `codex app-server` JSON-RPC, without mounting
+# competing DSH native file/shell/subagent tools.
+
+- insert:
+    - id: preset-codex-portal
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: codex-portal
+        name: Codex Portal
+        description: Run conversations directly inside your local Codex CLI environment via codex app-server.
+        order: 3
+        plugins:
+          - id: codex-portal-runtime
+            name: dsh-codex-portal/runtime

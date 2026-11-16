@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex Portal Runtime",
+    "description": "Preset-scoped turn runner and mode-model isolation for Codex Portal sessions."
+  }
+}

@@ -1,0 +1,210 @@
+import { IconChevronDownOutlineRegular, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store'
+import type { PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import type { ExternalCliApprovalPolicy, ExternalCliSandboxMode } from '../external-cli-contract'
+import styles from './CodexPortal.module.css'
+import type { NS } from './locales'
+import { useCodexPortalSelector, type CodexPortalClientStore, type CodexPortalStoreState } from './store'
+
+export interface CodexModelControlInjected {
+  readonly store: CodexPortalClientStore
+  readonly t: TranslateNS<typeof NS>
+  readonly useCodexPortal?: SnapshotSelectorHook<CodexPortalStoreState>
+}
+
+type CodexModelControlProps = PropsRuntime<'conversation.input.right'> & CodexModelControlInjected
+
+export function CodexModelControl({
+  store,
+  t,
+  useCodexPortal,
+  useSessions,
+  sessionId,
+}: CodexModelControlProps) {
+  const health = useCodexPortalSelector(store, s => s.health, undefined, useCodexPortal)
+  const models = useCodexPortalSelector(store, s => s.models, undefined, useCodexPortal)
+  const config = useCodexPortalSelector(store, s => s.config, undefined, useCodexPortal)
+  const sessionInfo = useCodexPortalSelector(store, s => s.sessions[sessionId], undefined, useCodexPortal)
+
+  const sessionSummary = typeof useSessions === 'function'
+    ? useSessions(state => state.byId[sessionId])
+    : undefined
+
+  const preset = typeof sessionSummary?.projectionValues?.agentPreset === 'string'
+    ? sessionSummary.projectionValues.agentPreset
+    : undefined
+  const modelProj = sessionSummary?.projectionValues?.modelSelection as {
+    next?: { provider?: string; model?: string; reasoningEffort?: string } | null
+    lastUsed?: { provider?: string; model?: string; reasoningEffort?: string } | null
+  } | undefined
+
+  const currentSelection = modelProj?.next ?? modelProj?.lastUsed
+  const isCodexActive = preset === 'codex-portal'
+    || currentSelection?.provider === 'codex-portal'
+    || sessionInfo?.isCodexSession === true
+
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState<{ left: number; bottom: number }>({ left: 16, bottom: 80 })
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const popoverRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!sessionId) return
+    void store.fetchSessionInfo(sessionId).catch(() => {})
+  }, [sessionId, preset, currentSelection?.provider, currentSelection?.model])
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return
+      if (popoverRef.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [open])
+
+  if (!isCodexActive) return null
+
+  const activeModelId = (currentSelection?.provider === 'codex-portal' ? currentSelection.model : undefined)
+    ?? sessionInfo?.model
+    ?? config.defaultModel
+    ?? models[0]?.id
+  const matchedModel = models.find(m => m.id === activeModelId)
+  const activeEffort = (currentSelection?.provider === 'codex-portal' ? currentSelection.reasoningEffort : undefined)
+    ?? sessionInfo?.reasoningEffort
+    ?? config.defaultReasoningEffort
+    ?? matchedModel?.defaultReasoningEffort
+  const activeSandbox = sessionInfo?.sandboxMode ?? config.defaultSandboxMode
+  const activeApproval = sessionInfo?.approvalPolicy ?? config.defaultApprovalPolicy
+
+  const displayName = matchedModel?.name ?? (activeModelId === 'codex-default' ? t('model.selectLabel') : activeModelId) ?? t('model.selectLabel')
+
+  const handleToggle = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setCoords({
+        left: Math.max(12, Math.min(rect.right - 280, window.innerWidth - 292)),
+        bottom: Math.max(12, window.innerHeight - rect.top + 8),
+      })
+    }
+    setOpen(prev => !prev)
+  }
+
+  return (
+    <div className={styles.modelSeat} data-codex-model-seat="active">
+      <button
+        ref={triggerRef}
+        type="button"
+        className={styles.modelTrigger}
+        disabled={sessionInfo?.busy}
+        onClick={handleToggle}
+        title={`${displayName}${activeEffort ? ` · ${activeEffort}` : ''}`}
+      >
+        <StateDot state={health?.available && health.authenticated ? 'done' : 'warning'} />
+        <span>{displayName}</span>
+        {activeEffort && <span className={styles.effortCaption}>· {activeEffort}</span>}
+        <IconChevronDownOutlineRegular size={12} />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          className={styles.popover}
+          style={{ left: `${coords.left}px`, bottom: `${coords.bottom}px` }}
+        >
+          <div>
+            <div className={styles.popoverSectionTitle}>{t('model.selectLabel')}</div>
+            <div className={styles.modelList}>
+              {models.length === 0 ? (
+                <div className={styles.statusMeta}>
+                  {health?.available ? t('model.loading') : t('model.unavailable')}
+                </div>
+              ) : (
+                models.map(model => (
+                  <button
+                    key={model.id}
+                    type="button"
+                    className={`${styles.modelOption} ${model.id === matchedModel?.id ? styles.modelOptionActive : ''}`}
+                    onClick={() => {
+                      void store.selectSessionModel({
+                        sessionId,
+                        model: model.id,
+                        ...(model.defaultReasoningEffort ? { reasoningEffort: model.defaultReasoningEffort } : {}),
+                      }).catch(() => {})
+                      setOpen(false)
+                    }}
+                  >
+                    <span>{model.name}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          {matchedModel?.reasoningEfforts && matchedModel.reasoningEfforts.length > 0 && (
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>{t('model.effort')}</label>
+              <select
+                className={styles.select}
+                value={activeEffort ?? ''}
+                onChange={(e) => {
+                  if (!matchedModel) return
+                  void store.selectSessionModel({
+                    sessionId,
+                    model: matchedModel.id,
+                    reasoningEffort: e.target.value,
+                  }).catch(() => {})
+                }}
+              >
+                {matchedModel.reasoningEfforts.map(eff => (
+                  <option key={eff.id} value={eff.id}>{eff.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>{t('model.sandbox')}</label>
+            <select
+              className={styles.select}
+              value={activeSandbox}
+              onChange={(e) => {
+                void store.setSessionConfig({
+                  sessionId,
+                  sandboxMode: e.target.value as ExternalCliSandboxMode,
+                }).catch(() => {})
+              }}
+            >
+              <option value="read-only">{t('sandbox.readOnly')}</option>
+              <option value="workspace-write">{t('sandbox.workspaceWrite')}</option>
+              <option value="danger-full-access">{t('sandbox.dangerFullAccess')}</option>
+            </select>
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>{t('model.approval')}</label>
+            <select
+              className={styles.select}
+              value={activeApproval}
+              onChange={(e) => {
+                void store.setSessionConfig({
+                  sessionId,
+                  approvalPolicy: e.target.value as ExternalCliApprovalPolicy,
+                }).catch(() => {})
+              }}
+            >
+              <option value="on-request">{t('approval.onRequest')}</option>
+              <option value="untrusted">{t('approval.untrusted')}</option>
+              <option value="never">{t('approval.never')}</option>
+            </select>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
+}

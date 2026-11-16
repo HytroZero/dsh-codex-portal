@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex Portal 运行时",
+    "description": "为 Codex Portal 会话提供 Preset 作用域回合托管与 Mode-Model 严格隔离。"
+  }
+}

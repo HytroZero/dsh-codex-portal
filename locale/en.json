@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex Portal",
+    "description": "Host your local Codex CLI runtime directly as an isolated DSH mode and external CLI engine."
+  }
+}
