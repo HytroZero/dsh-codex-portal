@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import type { ExternalCliApprovalPolicy, ExternalCliSandboxMode } from '../external-cli-contract'
 import styles from './CodexPortal.module.css'
 import type { NS } from './locales'
+import { SelectMenu } from './SelectMenu'
 import { useCodexPortalSelector, type CodexPortalClientStore, type CodexPortalStoreState } from './store'
 
 export interface CodexSettingsInjected {
@@ -37,8 +38,36 @@ export function CodexSettingsSection({ store, t, useCodexPortal }: CodexSettings
     setDefaultApproval(config.defaultApprovalPolicy)
   }, [config])
 
-  const selectedModelInfo = models.find(m => m.id === defaultModel) ?? models[0]
+  const selectedModelInfo = (defaultModel ? models.find(m => m.id === defaultModel) : undefined) ?? models[0]
   const efforts = selectedModelInfo?.reasoningEfforts ?? []
+
+  const modelOptions = [
+    { value: '', label: t('settings.modelAuto') },
+    ...models.map(m => ({ value: m.id, label: m.name })),
+    ...(defaultModel && !models.some(m => m.id === defaultModel)
+      ? [{ value: defaultModel, label: defaultModel }]
+      : []),
+  ]
+
+  const effortOptions = [
+    { value: '', label: t('settings.modelAuto') },
+    ...efforts.map(e => ({ value: e.id, label: e.name })),
+    ...(defaultEffort && !efforts.some(e => e.id === defaultEffort)
+      ? [{ value: defaultEffort, label: defaultEffort }]
+      : []),
+  ]
+
+  const sandboxOptions = [
+    { value: 'read-only', label: t('sandbox.readOnly') },
+    { value: 'workspace-write', label: t('sandbox.workspaceWrite') },
+    { value: 'danger-full-access', label: t('sandbox.dangerFullAccess') },
+  ]
+
+  const approvalOptions = [
+    { value: 'on-request', label: t('approval.onRequest') },
+    { value: 'untrusted', label: t('approval.untrusted') },
+    { value: 'never', label: t('approval.never') },
+  ]
 
   const statusTone = !health
     ? 'info'
@@ -122,64 +151,47 @@ export function CodexSettingsSection({ store, t, useCodexPortal }: CodexSettings
         <div className={styles.fieldGrid}>
           <div className={styles.field}>
             <label className={styles.fieldLabel}>{t('settings.defaultModel')}</label>
-            <select
-              className={styles.select}
+            <SelectMenu
               value={defaultModel}
-              onChange={(e) => {
-                const nextModel = e.target.value
+              options={modelOptions}
+              onChange={(nextModel) => {
                 setDefaultModel(nextModel)
-                const found = models.find(m => m.id === nextModel)
+                const found = nextModel ? models.find(m => m.id === nextModel) : models[0]
                 if (found?.defaultReasoningEffort) {
                   setDefaultEffort(found.defaultReasoningEffort)
+                } else if (defaultEffort && !found?.reasoningEfforts?.some(e => e.id === defaultEffort)) {
+                  setDefaultEffort('')
                 }
               }}
-            >
-              <option value="">{t('settings.modelAuto')}</option>
-              {models.map(m => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
+            />
           </div>
 
           <div className={styles.field}>
             <label className={styles.fieldLabel}>{t('settings.defaultEffort')}</label>
-            <select
-              className={styles.select}
+            <SelectMenu
               value={defaultEffort}
-              onChange={e => setDefaultEffort(e.target.value)}
+              options={effortOptions}
               disabled={efforts.length === 0}
-            >
-              <option value="">{t('settings.modelAuto')}</option>
-              {efforts.map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
+              onChange={setDefaultEffort}
+            />
           </div>
 
           <div className={styles.field}>
             <label className={styles.fieldLabel}>{t('settings.defaultSandbox')}</label>
-            <select
-              className={styles.select}
+            <SelectMenu
               value={defaultSandbox}
-              onChange={e => setDefaultSandbox(e.target.value as ExternalCliSandboxMode)}
-            >
-              <option value="read-only">{t('sandbox.readOnly')}</option>
-              <option value="workspace-write">{t('sandbox.workspaceWrite')}</option>
-              <option value="danger-full-access">{t('sandbox.dangerFullAccess')}</option>
-            </select>
+              options={sandboxOptions}
+              onChange={val => setDefaultSandbox(val as ExternalCliSandboxMode)}
+            />
           </div>
 
           <div className={styles.field}>
             <label className={styles.fieldLabel}>{t('settings.defaultApproval')}</label>
-            <select
-              className={styles.select}
+            <SelectMenu
               value={defaultApproval}
-              onChange={e => setDefaultApproval(e.target.value as ExternalCliApprovalPolicy)}
-            >
-              <option value="on-request">{t('approval.onRequest')}</option>
-              <option value="untrusted">{t('approval.untrusted')}</option>
-              <option value="never">{t('approval.never')}</option>
-            </select>
+              options={approvalOptions}
+              onChange={val => setDefaultApproval(val as ExternalCliApprovalPolicy)}
+            />
           </div>
         </div>
 

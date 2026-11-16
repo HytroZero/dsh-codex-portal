@@ -216,3 +216,98 @@ test('codex-portal executes turns, projects tools/approvals/questions, enforces 
   assert.match(reply3, /Codex\(gpt-5\.3-codex\): after resume/)
   assert.ok(harness)
 })
+
+test('switching blank sessions into and out of codex-portal preset avoids session append reentrancy and restores default model', { timeout: 20000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-codex-switch-'))
+  const ctx = new Context()
+  ctx.baseUrl = pathToFileURL(root).href + '/'
+  t.after(async () => {
+    try { await ctx.fiber.dispose() }
+    finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  const bin = await createMockShim(root)
+  await ctx.plugin(Loader, { name: 'loader', root })
+  await ctx.plugin(TypertRegistry)
+  await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
+  await ctx.plugin(Approval)
+  await ctx.plugin(UserQuestions)
+  await ctx.plugin(JsonlPersistence, { root: join(root, 'sessions') })
+  await mountAgentLoopTestHarness(ctx)
+  ctx.llm.registerAdapter(['mock'], new MockNativeLlm())
+
+  // Minimal agentDefaultModel provider matching host behavior when switching back to standard.
+  ctx.provide('agentDefaultModel', {
+    currentSelection: () => ({ provider: 'mock', model: 'mock' }),
+  })
+
+  await ctx.plugin(AgentPresetRegistry, { default: 'standard' })
+  await ctx.plugin(codexPlugin, {
+    binaryPath: bin,
+    configPath: join(root, 'codex-config.json'),
+  })
+
+  const runtimeUrl = new URL('../dist/preset-runtime.js', import.meta.url).href
+  await ctx.agentPresets.register({ id: 'standard', name: 'Standard', plugins: [] })
+  await ctx.agentPresets.register({ id: 'codex-portal', name: 'Codex Portal', plugins: [{ name: runtimeUrl }] })
+
+  // 1. Create a blank standard session BEFORE models are cached, then switch to codex-portal.
+  const blankStd = await ctx.agents.create({
+    sessionId: 'switch-to-codex',
+    meta: { cwd: root, agentPreset: 'standard' },
+    agentOptions: { provider: 'mock', model: 'mock' },
+    setup: async (agentCtx) => {
+      await ctx.agentPresets.mount(agentCtx, 'standard')
+    },
+  })
+
+  await ctx.agentPresets.select(blankStd.agent, 'codex-portal')
+  assert.equal(blankStd.agent.model.current()?.provider, 'codex-portal')
+  const switchedInfo = await ctx.codexPortal.remoteSessionInfo('switch-to-codex')
+  assert.equal(switchedInfo.isCodexSession, true)
+  assert.equal(switchedInfo.presetId, 'codex-portal')
+
+  // Background listModels() should upgrade placeholder 'codex-default' to 'gpt-5.4'.
+  for (let i = 0; i < 40; i += 1) {
+    if (blankStd.agent.model.current()?.model === 'gpt-5.4') break
+    await new Promise(r => setTimeout(r, 50))
+  }
+  assert.equal(blankStd.agent.model.current()?.model, 'gpt-5.4')
+
+  const codexReply = await waitTurn(ctx, blankStd.agent, 'after preset switch')
+  assert.match(codexReply, /Codex\(gpt-5\.4\): after preset switch/)
+
+  // 2. Create a blank session starting in codex-portal, switch back to standard, and verify isolation & fallback.
+  const blankCodex = await ctx.agents.create({
+    sessionId: 'switch-to-std',
+    meta: { cwd: root, agentPreset: 'codex-portal' },
+    agentOptions: { provider: 'mock', model: 'mock' },
+    setup: async (agentCtx) => {
+      await ctx.agentPresets.mount(agentCtx, 'codex-portal')
+    },
+  })
+  assert.equal(blankCodex.agent.model.current()?.provider, 'codex-portal')
+
+  await ctx.agentPresets.select(blankCodex.agent, 'standard')
+  assert.equal(blankCodex.agent.model.current()?.provider, 'mock')
+  assert.equal(blankCodex.agent.model.current()?.model, 'mock')
+  const revertedInfo = await ctx.codexPortal.remoteSessionInfo('switch-to-std')
+  assert.equal(revertedInfo.isCodexSession, false)
+  assert.equal(revertedInfo.presetId, 'standard')
+
+  const nativeReply = await waitTurn(ctx, blankCodex.agent, 'back to native')
+  assert.equal(nativeReply, 'native reply')
+
+  // 3. Switch another blank standard session to codex-portal when cachedModels IS populated.
+  const blankStd2 = await ctx.agents.create({
+    sessionId: 'switch-cached',
+    meta: { cwd: root, agentPreset: 'standard' },
+    agentOptions: { provider: 'mock', model: 'mock' },
+    setup: async (agentCtx) => {
+      await ctx.agentPresets.mount(agentCtx, 'standard')
+    },
+  })
+  await ctx.agentPresets.select(blankStd2.agent, 'codex-portal')
+  assert.equal(blankStd2.agent.model.current()?.provider, 'codex-portal')
+  assert.equal(blankStd2.agent.model.current()?.model, 'gpt-5.4')
+})

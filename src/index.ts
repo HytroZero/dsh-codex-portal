@@ -201,14 +201,29 @@ export async function apply(ctx: Context, initialConfig: Config = {}) {
     return modelsInflight
   }
 
-  async function syncCodexAgentSelection(agent: Agent) {
-    if (!isolation.isCodexAgent(agent)) return
+  let disposed = false
+  ctx.effect(() => () => {
+    disposed = true
+  }, 'codex-portal: lifecycle flag')
+
+  function isLiveCodexAgent(agent: Agent): boolean {
+    return !disposed && ctx.agents.get(agent.id) === agent && isolation.isCodexAgent(agent)
+  }
+
+  function syncCodexAgentSelection(agent: Agent) {
+    if (!isLiveCodexAgent(agent)) return
     ensureCodexModelSelection(agent, cachedModels, storedConfig, isolation.getSessionConfig(agent.id))
     if (cachedModels.length === 0) {
-      const models = await listModels().catch(() => [])
-      if (models.length > 0 && agent.model.current()?.model === 'codex-default') {
-        ensureCodexModelSelection(agent, models, storedConfig, isolation.getSessionConfig(agent.id))
-      }
+      void listModels().then((models) => {
+        if (!isLiveCodexAgent(agent) || models.length === 0) return
+        const boundary = ctx.agents.turnBoundaryOf(agent.session)
+        if (boundary.openTurnStartSeq !== null || boundary.lastTurn > 0) return
+        if (agent.model.current()?.model === 'codex-default') {
+          ensureCodexModelSelection(agent, models, storedConfig, isolation.getSessionConfig(agent.id))
+        }
+      }).catch((error) => {
+        ctx.logger.warn(`codex-portal: failed to refresh model selection: ${error instanceof Error ? error.message : String(error)}`)
+      })
     }
   }
 
@@ -375,14 +390,39 @@ export async function apply(ctx: Context, initialConfig: Config = {}) {
 
   // Initialize default Codex model selection when an Agent enters or switches preset
   ctx.effect(() => ctx.on('agent/created', async ({ agent }) => {
-    await syncCodexAgentSelection(agent)
+    syncCodexAgentSelection(agent)
   }), 'codex-portal: sync selection on agent create')
 
   ctx.effect(() => ctx.on('agent-preset/selected', (sessionId, agentPreset) => {
-    if (agentPreset === CODEX_PRESET_ID) {
+    // `agent-preset/selected` is emitted synchronously inside `Session.append()`.
+    // Defer `agent.model.select()` until after the current append finishes publishing
+    // to avoid reentering `Session.publicationEntry()`.
+    queueMicrotask(() => {
+      if (disposed) return
       const agent = ctx.agents.get(sessionId)
-      if (agent) void syncCodexAgentSelection(agent)
-    }
+      if (!agent) return
+      if (agentPreset === CODEX_PRESET_ID) {
+        try {
+          syncCodexAgentSelection(agent)
+        } catch (error) {
+          ctx.logger.warn(`codex-portal: failed to sync selection on preset switch: ${error instanceof Error ? error.message : String(error)}`)
+        }
+        return
+      }
+      if (!isolation.isCodexAgent(agent) && agent.model.current()?.provider === CODEX_PROVIDER_ID) {
+        const defaults = ctx.root.get('agentDefaultModel') as {
+          currentSelection?: () => { provider: string; model: string; reasoningEffort?: ReasoningEffortId } | undefined
+        } | undefined
+        const fallback = defaults?.currentSelection?.()
+        if (fallback?.provider && fallback.model && fallback.provider !== CODEX_PROVIDER_ID) {
+          try {
+            agent.model.select(fallback)
+          } catch (error) {
+            ctx.logger.warn(`codex-portal: failed to restore default model on preset switch: ${error instanceof Error ? error.message : String(error)}`)
+          }
+        }
+      }
+    })
   }), 'codex-portal: sync selection on preset switch')
 
   function registerPresetScope(targetCtx: Context) {
@@ -416,7 +456,15 @@ export async function apply(ctx: Context, initialConfig: Config = {}) {
     const agent = ctx.agents.get(brandString<SessionId>(sessionId))
     const sessionCfg = isolation.getSessionConfig(sessionId)
     const selection = agent?.model.current()
-    const presetId = agent?.session.header.agentPreset ?? undefined
+    const presetService = ctx.root.get('agentPresets') as {
+      composedPreset?(targetCtx: unknown): string | undefined
+      presetForSession?(session: unknown): string | null
+    } | undefined
+    const presetId = (agent
+      ? (presetService?.composedPreset?.(agent.ctx) ?? presetService?.presetForSession?.(agent.session))
+      : undefined)
+      ?? agent?.session.header.agentPreset
+      ?? undefined
     const isCodexSession = agent ? isolation.isCodexAgent(agent) : isolation.isBound(sessionId)
     const threadId = await projector.readSessionThreadId(sessionId)
     return {

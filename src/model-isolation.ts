@@ -60,8 +60,14 @@ export class CodexIsolationRegistry {
     if (this.boundSessions.has(agent.id)) return true
     const presetService = agent.ctx.root.get('agentPresets') as {
       composedPreset?(ctx: unknown): string | undefined
+      presetForSession?(session: unknown): string | null
     } | undefined
-    if (presetService?.composedPreset?.(agent.ctx) === CODEX_PRESET_ID) return true
+    if (presetService) {
+      const composed = presetService.composedPreset?.(agent.ctx)
+      if (composed !== undefined) return composed === CODEX_PRESET_ID
+      const recorded = presetService.presetForSession?.(agent.session)
+      if (recorded !== undefined && recorded !== null) return recorded === CODEX_PRESET_ID
+    }
     if (agent.session.header.agentPreset === CODEX_PRESET_ID) return true
     return false
   }
@@ -101,7 +107,11 @@ export function ensureCodexModelSelection(
   sessionConfig?: ExternalCliTurnConfig,
 ): ModelSelection | undefined {
   const current = agent.model.current()
-  if (current?.provider === CODEX_PROVIDER_ID && current.model) {
+  if (
+    current?.provider === CODEX_PROVIDER_ID
+    && current.model
+    && !(current.model === 'codex-default' && models.length > 0)
+  ) {
     return current
   }
   const fallback = pickDefaultCodexSelection(models, config, sessionConfig)
