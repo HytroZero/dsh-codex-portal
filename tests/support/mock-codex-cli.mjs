@@ -116,6 +116,8 @@ if (args[0] === 'app-server') {
         result: {
           thread: { id: 'thr_mock_1', cwd: params.cwd ?? process.cwd() },
           model: params.model ?? 'gpt-5.4',
+          approvalPolicy: params.approvalPolicy ?? null,
+          approvalsReviewer: params.approvalsReviewer ?? null,
         },
       })
       return
@@ -225,6 +227,21 @@ if (args[0] === 'app-server') {
         if (text.includes('SLOW_TURN')) {
           await new Promise(r => setTimeout(r, 3000))
           if (!activeTurn || activeTurn.turnId !== turnId) return
+        }
+
+        if (text.includes('ECHO_APPROVAL_PARAMS')) {
+          send({
+            method: 'item/agentMessage/delta',
+            params: {
+              threadId,
+              turnId,
+              itemId: 'msg_1',
+              delta: `approvalPolicy=${params.approvalPolicy ?? 'none'},approvalsReviewer=${params.approvalsReviewer ?? 'none'}`,
+            },
+          })
+          send({ method: 'turn/completed', params: { threadId, turn: { id: turnId, status: 'completed' } } })
+          activeTurn = null
+          return
         }
 
         send({

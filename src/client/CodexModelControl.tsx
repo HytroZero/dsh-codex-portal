@@ -1,14 +1,13 @@
 import { IconCheckOutlineRegular, IconChevronDownOutlineRegular, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store'
 import type { PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { ExternalCliApprovalPolicy, ExternalCliSandboxMode } from '../external-cli-contract'
 import styles from './CodexPortal.module.css'
 import type { NS } from './locales'
 import { SelectMenu } from './SelectMenu'
-import { useCodexPortalSelector, type CodexPortalClientStore, type CodexPortalStoreState } from './store'
+import type { CodexPortalClientStore, CodexPortalStoreState } from './store'
+import { useCodexSessionControl } from './useCodexSession'
 
 export interface CodexModelControlInjected {
   readonly store: CodexPortalClientStore
@@ -25,37 +24,24 @@ export function CodexModelControl({
   useSessions,
   sessionId,
 }: CodexModelControlProps) {
-  const health = useCodexPortalSelector(store, s => s.health, undefined, useCodexPortal)
-  const models = useCodexPortalSelector(store, s => s.models, undefined, useCodexPortal)
-  const config = useCodexPortalSelector(store, s => s.config, undefined, useCodexPortal)
-  const sessionInfo = useCodexPortalSelector(store, s => s.sessions[sessionId], undefined, useCodexPortal)
-
-  const sessionSummary = typeof useSessions === 'function'
-    ? useSessions(state => state.byId[sessionId])
-    : undefined
-
-  const preset = typeof sessionSummary?.projectionValues?.agentPreset === 'string'
-    ? sessionSummary.projectionValues.agentPreset
-    : undefined
-  const modelProj = sessionSummary?.projectionValues?.modelSelection as {
-    next?: { provider?: string; model?: string; reasoningEffort?: string } | null
-    lastUsed?: { provider?: string; model?: string; reasoningEffort?: string } | null
-  } | undefined
-
-  const currentSelection = modelProj?.next ?? modelProj?.lastUsed
-  const isCodexActive = preset === 'codex-portal'
-    || currentSelection?.provider === 'codex-portal'
-    || sessionInfo?.isCodexSession === true
+  const {
+    health,
+    models,
+    config,
+    sessionInfo,
+    currentSelection,
+    isCodexActive,
+  } = useCodexSessionControl({
+    store,
+    sessionId,
+    useSessions,
+    useCodexPortal,
+  })
 
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<{ left: number; bottom: number }>({ left: 16, bottom: 80 })
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    if (!sessionId) return
-    void store.fetchSessionInfo(sessionId).catch(() => {})
-  }, [sessionId, preset, currentSelection?.provider, currentSelection?.model])
 
   useEffect(() => {
     if (!open) return
@@ -97,8 +83,6 @@ export function CodexModelControl({
         ? rawEffort!
         : (matchedModel.defaultReasoningEffort ?? matchedModel.reasoningEfforts[0]!.id))
     : rawEffort
-  const activeSandbox = sessionInfo?.sandboxMode ?? config.defaultSandboxMode
-  const activeApproval = sessionInfo?.approvalPolicy ?? config.defaultApprovalPolicy
 
   const displayName = matchedModel?.name ?? (activeModelId === 'codex-default' ? t('model.selectLabel') : activeModelId) ?? t('model.selectLabel')
 
@@ -182,42 +166,6 @@ export function CodexModelControl({
               />
             </div>
           )}
-
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>{t('model.sandbox')}</label>
-            <SelectMenu
-              value={activeSandbox}
-              options={[
-                { value: 'read-only', label: t('sandbox.readOnly') },
-                { value: 'workspace-write', label: t('sandbox.workspaceWrite') },
-                { value: 'danger-full-access', label: t('sandbox.dangerFullAccess') },
-              ]}
-              onChange={(nextSandbox) => {
-                void store.setSessionConfig({
-                  sessionId,
-                  sandboxMode: nextSandbox as ExternalCliSandboxMode,
-                }).catch(() => {})
-              }}
-            />
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>{t('model.approval')}</label>
-            <SelectMenu
-              value={activeApproval}
-              options={[
-                { value: 'on-request', label: t('approval.onRequest') },
-                { value: 'untrusted', label: t('approval.untrusted') },
-                { value: 'never', label: t('approval.never') },
-              ]}
-              onChange={(nextApproval) => {
-                void store.setSessionConfig({
-                  sessionId,
-                  approvalPolicy: nextApproval as ExternalCliApprovalPolicy,
-                }).catch(() => {})
-              }}
-            />
-          </div>
         </div>,
         document.body,
       )}

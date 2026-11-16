@@ -78,6 +78,36 @@ test('CodexAppServerClient completes handshake, paginated model/list, thread lif
   assert.equal(seenRequests[0]?.method, 'item/commandExecution/requestApproval')
   assert.ok(notifications.some(n => n.method === 'item/agentMessage/delta' && n.params.delta === 'Approved and executed.'))
 
+  const waitAgentDelta = () => new Promise((resolve) => {
+    const onNotification = (n) => {
+      if (n.method === 'item/agentMessage/delta') {
+        client.off('notification', onNotification)
+        resolve(n.params.delta)
+      }
+    }
+    client.on('notification', onNotification)
+  })
+
+  const autoReviewDelta = waitAgentDelta()
+  await client.startTurn({
+    threadId,
+    input: 'ECHO_APPROVAL_PARAMS',
+    cwd: dir,
+    model: 'gpt-5.4',
+    approvalPolicy: 'auto-review',
+  })
+  assert.equal(await autoReviewDelta, 'approvalPolicy=on-request,approvalsReviewer=auto_review')
+
+  const userReviewDelta = waitAgentDelta()
+  await client.startTurn({
+    threadId,
+    input: 'ECHO_APPROVAL_PARAMS',
+    cwd: dir,
+    model: 'gpt-5.4',
+    approvalPolicy: 'on-request',
+  })
+  assert.equal(await userReviewDelta, 'approvalPolicy=on-request,approvalsReviewer=user')
+
   const resumed = await client.resumeThread(threadId, { cwd: dir })
   assert.equal(resumed.threadId, threadId)
 })

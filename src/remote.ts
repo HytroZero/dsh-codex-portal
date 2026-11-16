@@ -47,7 +47,7 @@ export interface CodexPortalSessionConfigParams {
 
 export function createCodexPortalRemoteInfo(z: typeof ZodNamespace) {
   const sandboxSchema = z.enum(['read-only', 'workspace-write', 'danger-full-access'])
-  const approvalSchema = z.enum(['untrusted', 'on-request', 'never'])
+  const approvalSchema = z.enum(['untrusted', 'on-request', 'auto-review', 'never'])
 
   const healthSchema = z.object({
     available: z.boolean(),

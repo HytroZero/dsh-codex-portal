@@ -74,6 +74,23 @@ function mapSandboxPolicy(mode: ExternalCliSandboxMode, cwd?: string): Record<st
   }
 }
 
+function mapApprovalParams(policy?: ExternalCliApprovalPolicy): {
+  approvalPolicy?: 'untrusted' | 'on-request' | 'never'
+  approvalsReviewer?: 'user' | 'auto_review'
+} {
+  if (!policy) return {}
+  if (policy === 'auto-review') {
+    return {
+      approvalPolicy: 'on-request',
+      approvalsReviewer: 'auto_review',
+    }
+  }
+  return {
+    approvalPolicy: policy,
+    approvalsReviewer: 'user',
+  }
+}
+
 export class CodexAppServerError extends Error {
   constructor(readonly code: string | number, message: string, options?: ErrorOptions) {
     super(message, options)
@@ -400,7 +417,7 @@ export class CodexAppServerClient extends EventEmitter {
     const res = await this.request<{ thread?: { id?: string } }>('thread/start', {
       cwd: params.cwd,
       ...(params.model ? { model: params.model } : {}),
-      ...(params.approvalPolicy ? { approvalPolicy: params.approvalPolicy } : {}),
+      ...mapApprovalParams(params.approvalPolicy),
       ...(params.sandboxMode ? { sandbox: params.sandboxMode } : {}),
       ...(params.developerInstructions ? { developerInstructions: params.developerInstructions } : {}),
       ...(config ? { config } : {}),
@@ -416,7 +433,7 @@ export class CodexAppServerClient extends EventEmitter {
       threadId,
       cwd: params.cwd,
       ...(params.model ? { model: params.model } : {}),
-      ...(params.approvalPolicy ? { approvalPolicy: params.approvalPolicy } : {}),
+      ...mapApprovalParams(params.approvalPolicy),
       ...(params.sandboxMode ? { sandbox: params.sandboxMode } : {}),
       ...(params.developerInstructions ? { developerInstructions: params.developerInstructions } : {}),
       ...(config ? { config } : {}),
@@ -430,7 +447,7 @@ export class CodexAppServerClient extends EventEmitter {
       input: [{ type: 'text', text: params.input }],
       ...(params.model ? { model: params.model } : {}),
       ...(params.effort ? { effort: params.effort } : {}),
-      ...(params.approvalPolicy ? { approvalPolicy: params.approvalPolicy } : {}),
+      ...mapApprovalParams(params.approvalPolicy),
       ...(params.sandboxMode ? { sandboxPolicy: mapSandboxPolicy(params.sandboxMode, params.cwd) } : {}),
     }, signal)
     const turnId = res.turn?.id

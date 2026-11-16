@@ -101,6 +101,9 @@ test('bundle manifests, presets, and client.js UMD bundle conform to DSH rules',
     return {}
   })
   assert.equal(typeof exports.apply, 'function')
+  assert.match(clientCode, /conversation\.input\.left/)
+  assert.match(clientCode, /data-codex-permission-seat/)
+  assert.match(clientCode, /auto-review/)
 })
 
 test('codex-portal executes turns, projects tools/approvals/questions, enforces mode-model isolation, and supports cold resume', { timeout: 20000 }, async t => {
@@ -195,7 +198,7 @@ test('codex-portal executes turns, projects tools/approvals/questions, enforces 
   const replyInput = await waitTurn(ctx, codexHandle.agent, 'NEED_INPUT')
   assert.equal(replyInput, 'Selected: staging')
 
-  // Verify Typert model selection on codex-portal session
+  // Verify Typert model selection and session sandbox/approval config (including auto-review)
   const info = await ctx.codexPortal.remoteSelectModel({
     sessionId: 'codex-1',
     model: 'gpt-5.3-codex',
@@ -203,6 +206,19 @@ test('codex-portal executes turns, projects tools/approvals/questions, enforces 
   })
   assert.equal(info.model, 'gpt-5.3-codex')
   assert.equal(info.reasoningEffort, 'high')
+
+  const updatedSessionCfg = await ctx.codexPortal.remoteSetSessionConfig({
+    sessionId: 'codex-1',
+    sandboxMode: 'read-only',
+    approvalPolicy: 'auto-review',
+  })
+  assert.equal(updatedSessionCfg.sandboxMode, 'read-only')
+  assert.equal(updatedSessionCfg.approvalPolicy, 'auto-review')
+
+  const updatedGlobalCfg = await ctx.codexPortal.remoteSetConfig({
+    defaultApprovalPolicy: 'auto-review',
+  })
+  assert.equal(updatedGlobalCfg.config.defaultApprovalPolicy, 'auto-review')
 
   // Dispose and cold resume codex-1
   await codexHandle.dispose()

@@ -97,7 +97,10 @@ async function loadStoredConfig(filePath: string, defaults: Config): Promise<Cod
       ...(raw.defaultSandboxMode === 'read-only' || raw.defaultSandboxMode === 'workspace-write' || raw.defaultSandboxMode === 'danger-full-access'
         ? { defaultSandboxMode: raw.defaultSandboxMode }
         : {}),
-      ...(raw.defaultApprovalPolicy === 'untrusted' || raw.defaultApprovalPolicy === 'on-request' || raw.defaultApprovalPolicy === 'never'
+      ...(raw.defaultApprovalPolicy === 'untrusted'
+        || raw.defaultApprovalPolicy === 'on-request'
+        || raw.defaultApprovalPolicy === 'auto-review'
+        || raw.defaultApprovalPolicy === 'never'
         ? { defaultApprovalPolicy: raw.defaultApprovalPolicy }
         : {}),
     }

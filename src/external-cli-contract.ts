@@ -1,7 +1,7 @@
 import type {} from '@deepseek-ai/cordis'
 
 export type ExternalCliSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access'
-export type ExternalCliApprovalPolicy = 'untrusted' | 'on-request' | 'never'
+export type ExternalCliApprovalPolicy = 'untrusted' | 'on-request' | 'auto-review' | 'never'
 
 export interface ExternalCliModelInfo {
   id: string

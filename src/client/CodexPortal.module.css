@@ -3,6 +3,16 @@
   display: none !important;
 }
 
+/* Hide native host permission control whenever CodexPermissionControls is active for this session */
+:global(div:has(+ [data-slot='conversation.input.left'] > [data-codex-permission-seat='active']) > [data-slot='conversation.input.permission']) {
+  display: none !important;
+}
+
+/* Collapse the host .modes wrapper if no other control (e.g. plan) is rendered inside it */
+:global(div:has(+ [data-slot='conversation.input.left'] > [data-codex-permission-seat='active']):not(:has(> [data-slot='conversation.input.plan'] > *))) {
+  display: none !important;
+}
+
 .section {
   display: flex;
   flex-direction: column;
@@ -206,6 +216,65 @@
 .effortCaption {
   color: var(--dsw-alias-label-caption);
   font-size: 12px;
+}
+
+/* Input bar Codex left permission controls (sandbox + approval policy) */
+.permissionSeat {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.permissionTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.permissionTrigger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.permissionTrigger:focus-visible {
+  outline: none;
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.permissionTrigger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.permissionTriggerWarn {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.permissionTriggerWarn:hover:not(:disabled) {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.permissionIcon,
+.permissionChevron {
+  flex: none;
+}
+
+.permissionLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .popover {

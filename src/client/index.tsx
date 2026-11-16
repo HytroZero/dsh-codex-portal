@@ -11,6 +11,7 @@ import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
 import { IconDataOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { CodexModelControl } from './CodexModelControl'
+import { CodexPermissionControls } from './CodexPermissionControls'
 import { CodexSettingsSection } from './CodexSettingsSection'
 import { CodexToolView } from './CodexToolViews'
 import { NS, en, zh } from './locales'
@@ -68,6 +69,18 @@ export function apply(ctx: Context): void {
     },
     (props: PropsRuntime<'settings.section'>) => <CodexSettingsSection store={store} t={t} {...props} />,
     'codex-portal: settings section',
+  )
+
+  registerSlot(
+    {
+      name: 'conversation.input.left',
+      id: 'codex-portal-permissions',
+      order: 50,
+      locale: NS,
+      inject: injectBase,
+    },
+    (props: PropsRuntime<'conversation.input.left'>) => <CodexPermissionControls store={store} t={t} {...props} />,
+    'codex-portal: input permission controls',
   )
 
   registerSlot(

@@ -65,6 +65,7 @@ export function CodexSettingsSection({ store, t, useCodexPortal }: CodexSettings
 
   const approvalOptions = [
     { value: 'on-request', label: t('approval.onRequest') },
+    { value: 'auto-review', label: t('approval.autoReview') },
     { value: 'untrusted', label: t('approval.untrusted') },
     { value: 'never', label: t('approval.never') },
   ]

@@ -1,6 +1,6 @@
 {
   "name": "dsh-codex-portal",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Local Codex CLI (codex app-server) portal mode and external CLI engine plugin for DeepSeek Harness",
   "license": "MIT",
   "type": "module",
